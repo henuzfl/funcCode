@@ -4,6 +4,11 @@ from enum import Enum
 from pymongo import MongoClient
 import time
 
+'''
+	使用红黑树实现实时用户积分排名
+	红黑树的实现部分参见《算法导论》第十三章
+'''
+
 # 获得系统的时间戳 毫秒
 currentMilliTime = lambda : int(round(time.time()*1000))
 
@@ -80,6 +85,7 @@ class RBTree(object):
 		x.count += (y.right.count + y.length())
 		y.count -= (x.left.count + x.length())
 
+	# 插入节点
 	def insert(self,z):
 		y = self.nil
 		x = self.root
@@ -105,6 +111,7 @@ class RBTree(object):
 		z.color = NodeColor.RED
 		self.insertFixup(z)
 
+	# 插入节点之后，调整红黑树
 	def insertFixup(self,z):
 		while z.parent.color == NodeColor.RED:
 			if z.parent == z.parent.parent.left:
@@ -262,12 +269,13 @@ class RBTree(object):
 		if y.originalColor == NodeColor.BLACK:
 			self.deleteFixup(x)
 
+	# 向上父节点count-1
 	def nodeCountReduce(self,z):
 		while z != self.nil:
 			z.count -= 1
 			z = z.parent
 
-
+	# 删除之后红黑树的调整
 	def deleteFixup(self,x):
 		while x != self.root and x.color == NodeColor.BLACK:
 			if x == x.parent.left:
@@ -312,13 +320,14 @@ class RBTree(object):
 				x = self.root
 		x.color = NodeColor.BLACK
 
+	# 增加积分
 	def nodeValueIncrease(self,z,value,num):
 		self.delete(z,value)
 		x = Node(z.key+num,value)
 		self.insert(x)
 
 
-
+# 具体实现类
 class IntegralRank(object):
 
 	def __init__(self):
@@ -328,6 +337,7 @@ class IntegralRank(object):
 		self.UserColl = db.Users
 		self.initialize()
 
+	# 首先要构造红黑树
 	def initialize(self):
 		start = currentMilliTime()
 		for user in self.UserColl.find():
@@ -336,6 +346,7 @@ class IntegralRank(object):
 		end = currentMilliTime()
 		print("初始化所用时间（构建红黑树的时间）：%s" % (end-start))
 
+	# 新增一个用户
 	def addNewUser(self,name):
 		start = currentMilliTime()
 		user = self.UserColl.find_one({"name":name})
@@ -345,13 +356,14 @@ class IntegralRank(object):
 		end = currentMilliTime()
 		print("插入用户运行时间：%s" % (end-start))
 
-
+    # 通过用户名得到红黑树的节点
 	def getUserNodeByName(self,name):
 		user = self.UserColl.find_one({"name":name})
 		if None != user:
 			return self.tree.getNodeByKeyAndValue(user.get("integral"),name)
 		return None
 
+	# 得到用户排名
 	def getUserRank(self,name):
 		start = currentMilliTime()
 		rank = -1
@@ -362,6 +374,7 @@ class IntegralRank(object):
 		print("获得用户排名运行时间：%s" % (end-start))
 		return rank
 
+	# TopN问题
 	def getTopNUser(self,n):
 		start = currentMilliTime()
 		topNUsers = self.tree.getTopNValues(n)
@@ -369,6 +382,7 @@ class IntegralRank(object):
 		print("获得排名前%s用户运行时间：%s" % (n,end-start))
 		return topNUsers
 
+	# 用户增加积分
 	def userIncreaseIntegral(self,name,num):
 		start = currentMilliTime()
 		node = self.getUserNodeByName(name)
@@ -378,9 +392,11 @@ class IntegralRank(object):
 		end = currentMilliTime()
 		print("用户变更积分运行时间" % (end-start))
 
+	# 用户减少积分
 	def userDecreaseIntegral(self,name,num):
 		self.userIncreaseIntegral(name,-num)
 
+	# 删除用户
 	def deleteUser(self,name):
 		start = currentMilliTime()
 		node = self.getUserNodeByName(name)
